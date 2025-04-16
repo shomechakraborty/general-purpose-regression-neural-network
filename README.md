@@ -61,7 +61,7 @@ Kaiming He Weight Initialization - Weights in each neuron are initialized using 
 
 - Each weight in a given neuron is randomly and uniformly initialized to a value within the following range:
 
--  [-6inputs received by neuron , 6inputs received by neuron  ]
+-  [-sqrt(6inputs received by neuron) , sqrt(6inputs received by neuron)]
 
 - This initialization method addresses the potential issue of Vanishing Gradients
 
