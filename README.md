@@ -86,7 +86,7 @@ After the model computes a predicted value based on the input feature values of 
 
 L2 Regularization - The loss function for the model for each labeled data point from the training dataset is equal to the difference between the target value of the data point and the model’s predicted value for the data point plus the model’s L2 Regularization - which consists of the sum of the squared values of all the input weights in the model
 
-loss = target - prediction + i = 1n(input) weighti2
+loss = target - prediction + summation(input_weight^2)
 
 The purpose of adding the model’s L2 Regularization to its loss function is to stabilize the values of input weights with respect to their input, which serves to stabilize training and lead to smoother convergence, accounting for the Exploding Gradients problem
 
