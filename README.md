@@ -112,11 +112,12 @@ After the model computes a gradient for a given weight or bias (parameter) in th
 
 Gradient Clipping - The gradients computed for all weights and bias in a given neuron will be regulated (or clipped) through the gradient clipping process
 The L2 Norm (Euclidean Norm) of all the gradients in the neuron are computed
-L2 Norm = i = 1nweighti2
 The Max Norm of the gradients is determined as a percentile of the gradients based on the Max Norm Percentile Threshold hyperparameter 
 If the L2 Norm of the gradients in the neuron is greater than their Max Norm, then all of the gradients in the neuron will be scaled down by a factor of (Max Norm/L2 Norm) such that none of the gradients will be greater than the Max Norm - otherwise they will remain the same
+
 Final Gradient = Gradient (Max NormL2 Norm) for L2 Norm > Max Norm
 Final Gradient = Gradient for otherwise
+
 This process serves to stabilize training and lead to smoother convergence, accounting for the Exploding Gradients problem
 
 Learning Rate Decay - The learning rate of the model by which gradients are scaled before being used to adjust weights will decay through each iteration of updates to parameters (or each time the model processes a data point from the training dataset) using the Learning Rate Decay Rate hyperparameter provided by the user
@@ -129,10 +130,11 @@ The factor by which the parameter update will be regulated is based on the Momen
 This process is an additional mechanism to stabilize training and lead to smoother convergence, accounting for the Exploding Gradients problem
 The final update for a given parameter is as follows
 
-Final Velocity (Update) = (Previous Velocity * MomentumFactor) 
-- (Gradient * Adjusted Learning Rate)
+Final Velocity (Update) = (Previous Velocity * MomentumFactor) - (Gradient * Adjusted Learning Rate)
+
 The computed final update for the given parameter is added to the parameter as follows:
-	Parameter Value = Previous Parameter Value + Final Velocity 
+
+Parameter Value = Previous Parameter Value + Final Velocity 
 
 Validation 
 For each epoch in the training stage, after the model has processed and updated its parameters for all the data points in the training data, the model will test on the validation dataset with the updated parameters the model developed as it processed each data point in the training dataset for that epoch
