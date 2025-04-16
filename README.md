@@ -75,6 +75,7 @@ The purpose of not applying Layer Normalization or a non-linear transformation o
 For neurons in the hidden layers, the final (ReLU) activation output is as follows:
 
 Final Output = Weighted Sum for Weighted Sum > 0
+
 Final Output = 0 for Weight Sum <= 0
 
 For neurons in the input and output layer, the final (Linear) activation output is as follows:
@@ -128,14 +129,16 @@ Final Gradient = Gradient for otherwise
 This process serves to stabilize training and lead to smoother convergence, accounting for the Exploding Gradients problem
 
 Learning Rate Decay - The learning rate of the model by which gradients are scaled before being used to adjust weights will decay through each iteration of updates to parameters (or each time the model processes a data point from the training dataset) using the Learning Rate Decay Rate hyperparameter provided by the user
-The adjusted learning rate used by the model at a given iteration of updates towards weights and biases is as follows
+The adjusted learning rate used by the model at a given iteration of updates towards weights and biases is as follows:
+
 Adjusted Learning Rate = Original Learning Rate1 + (Learning Rate Decay Rate)(Iteration Step)
+
 This process helps to provide for faster convergence as the model keeps learning from the training data
 
 Momentum-Based Parameter Updating - After the gradient and adjusted learning rate for a given parameter is computed, the update (or velocity) to the parameter will be regulated based on previous updates given to that parameter
 The factor by which the parameter update will be regulated is based on the Momentum Factor hyperparameter provided by the user
 This process is an additional mechanism to stabilize training and lead to smoother convergence, accounting for the Exploding Gradients problem
-The final update for a given parameter is as follows
+The final update for a given parameter is as follows:
 
 Final Velocity (Update) = (Previous Velocity * MomentumFactor) - (Gradient * Adjusted Learning Rate)
 
