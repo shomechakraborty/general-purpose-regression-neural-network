@@ -1,7 +1,7 @@
 import math, random, statistics, numpy, copy
 
 class NeuralNetworkModel:
-    def __init__(self, training_data_file_name, text_reference = None, model_size = 5, neuron_size_base = 2, training_epochs = 50, training_data_proportion = 0.75, delta = 1.0, learning_rate = 0.001, learning_rate_decay_rate = 10.0 ** -4, momentum_factor = 0.9, max_norm_benchmark = 90):
+    def __init__(self, training_data_file_name, text_reference = None, model_size = 5, neuron_size_base = 2, training_epochs = 75, training_data_proportion = 0.75, delta = 1.0, learning_rate = 0.001, learning_rate_decay_rate = 10.0 ** -4, momentum_factor = 0.9, max_norm_benchmark = 90):
         self.training_data_file_name = training_data_file_name
         self.text_reference = text_reference
         self.delta = delta
