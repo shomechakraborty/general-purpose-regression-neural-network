@@ -85,13 +85,17 @@ Backward Propagation
 After the model computes a predicted value based on the input feature values of a data point from the training dataset, it will compute the gradients for each weight within each neuron within each layer of the model based on the cost function -
 
 L2 Regularization - The loss function for the model for each labeled data point from the training dataset is equal to the difference between the target value of the data point and the model’s predicted value for the data point plus the model’s L2 Regularization - which consists of the sum of the squared values of all the input weights in the model
+
 loss = target - prediction + i = 1n(input) weighti2
+
 The purpose of adding the model’s L2 Regularization to its loss function is to stabilize the values of input weights with respect to their input, which serves to stabilize training and lead to smoother convergence, accounting for the Exploding Gradients problem
 
 Huber Loss (Cost) Function - The cost function for the model based on its loss function is derived from the Huber Loss (Cost) Function
 The gradient for each weight within each neuron (going from the output layer to input layer) is computed using chain rule based on the cost function of the model derived from the Huber Loss Function
 The cost function for the model after processing a given data point is as follows:
-cost = 0.5(loss)2 for loss <= delta
+
+cost = 0.5(loss)^2 for loss <= delta
+
 cost = delta (|loss| - 0.5delta) for otherwise
 
 Gradient for input weight =  cost derivative with respect to loss * loss derivative with respect to neuron activation output (final neuron output) * neuron activation output derivative with respect to neuron weighted sum * neuron weighted sum derivative with respect to input weight (equals the respective input of the input weight)
@@ -99,9 +103,11 @@ Gradient for input weight =  cost derivative with respect to loss * loss derivat
 Gradient for bias weight = cost derivative with respect to loss * loss derivative with respect to neuron activation output (final neuron output) * neuron activation output derivative with respect to neuron weighted sum * neuron weighted sum derivative with respect to bias weight (equals bias)
 
 General Formula For All Weights:
+
 dCdW=dCdL*dLdA*dAdS*dSdW
 
 Gradient for bias = cost derivative with respect to loss * loss derivative with respect to neuron activation output (final neuron output) * neuron activation output derivative with respect to neuron weighted sum * neuron weighted sum derivative with respect to bias (equals 1)
+
 dCdB=dCdL*dLdA*dAdS*dSdB
 
 Gradient Descent
@@ -116,6 +122,7 @@ The Max Norm of the gradients is determined as a percentile of the gradients bas
 If the L2 Norm of the gradients in the neuron is greater than their Max Norm, then all of the gradients in the neuron will be scaled down by a factor of (Max Norm/L2 Norm) such that none of the gradients will be greater than the Max Norm - otherwise they will remain the same
 
 Final Gradient = Gradient (Max NormL2 Norm) for L2 Norm > Max Norm
+
 Final Gradient = Gradient for otherwise
 
 This process serves to stabilize training and lead to smoother convergence, accounting for the Exploding Gradients problem
