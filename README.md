@@ -26,7 +26,7 @@ Hyper-Parameters (Provided By Users in Addition to Dataset)
 - Text Reference (Default Value - None) - An optional dictionary of text values to respective numerical values the user can put in if the data they provide contains text values - necessary for quantitative processing and analysis)
 - Model Size (Default Value - 5) - The number of layers in the neuron
 - Neuron Size Base (Default Value - 2) - The base rule for the number of neurons in each layer
-- Training Epochs (Default Value - 50) - The number of epochs (times) the model will train on the training data
+- Training Epochs (Default Value - 75) - The number of epochs (times) the model will train on the training data
 - Training Data Proportion - The portion of data provided by the user which will be the training data (with the remainder being used for validation)
 - Delta (Default Value - 1.0) - A threshold value for loss which determines whether the cost function should switch to the absolute value of loss from squared loss during Gradient Descent (under the Huber Loss Function)
 - Learning Rate (Default Value - 0.001) - The rate at which gradients for weight updates are updated during Gradient Descent 
