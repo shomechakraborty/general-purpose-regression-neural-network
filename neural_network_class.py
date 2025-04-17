@@ -227,15 +227,28 @@ class NeuralNetworkModel:
     return back."""
     def run_back_propagation_and_gradient_descent(self, initial_inputs, target, outputs, weighted_sums, parameters, parameter_velocities, model_size, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark):
         loss, cost, cost_derivative_with_respect_to_loss = self.compute_loss_and_cost_values_and_derivative(target, outputs[model_size - 1][0], parameters, delta)
-        loss_derivative_with_respect_to_neuron_activation_output = -1.0
+        loss_derivative_with_respect_to_neuron_activation_outputs = []
+        neuron_activation_output_derivative_with_respect_to_neuron_sums = []
         for i in reversed(range(model_size)):
-            if i == 0 or i == model_size - 1 or weighted_sums[i][j] > 0:
-                neuron_activation_output_derivative_with_respect_to_neuron_sum = 1.0
-            else:
-                neuron_activation_output_derivative_with_respect_to_neuron_sum = 0.0
+            loss_derivative_with_respect_to_neuron_activation_outputs.append([])
+            neuron_activation_output_derivative_with_respect_to_neuron_sums.append([])
             for j in range(int(math.pow(neuron_size_base, model_size - 1 - i))):
+                loss_derivative_with_respect_to_neuron_activation_outputs[i].append([])
+                neuron_activation_output_derivative_with_respect_to_neuron_sums[i].append([])
                 neuron_gradients = []
                 scaled_neuron_gradients = []
+                if i == model_size - 1:
+                    loss_derivative_with_respect_to_neuron_activation_output = -1.0
+                else:
+                    loss_derivative_with_respect_to_neuron_activation_output = 0
+                    for k in parameters[i + 1]:
+                        loss_derivative_with_respect_to_neuron_activation_output += (loss_derivative_with_respect_to_neuron_activation_outputs[i + 1][k] * neuron_activation_output_derivative_with_respect_to_neuron_sums[i + 1][k] * parameters[i + 1][k][0][j])
+                loss_derivative_with_respect_to_neuron_activation_outputs[i][j] = loss_derivative_with_respect_to_neuron_activation_output
+                if i == 0 or i == model_size - 1 or weighted_sums[i][j] > 0:
+                    neuron_activation_output_derivative_with_respect_to_neuron_sum = 1.0
+                else:
+                    neuron_activation_output_derivative_with_respect_to_neuron_sum = 0.0
+                neuron_activation_output_derivative_with_respect_to_neuron_sums[i][j] = neuron_activation_output_derivative_with_respect_to_neuron_sum
                 for k in range(len(parameters[i][j][0])):
                     if i == 0:
                         neuron_sum_derivative_with_respect_to_input_weight = initial_inputs[k]
