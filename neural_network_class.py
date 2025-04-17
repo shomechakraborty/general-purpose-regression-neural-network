@@ -260,10 +260,10 @@ class NeuralNetworkModel:
                     cost_derivative_with_respect_to_input_weight = (cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_input_weight) + (2 * parameters[i][j][0][k])
                     neuron_gradients.append(cost_derivative_with_respect_to_input_weight)
                 neuron_sum_derivative_with_respect_to_bias_weight = parameters[i][j][1]
-                cost_derivative_with_respect_to_bias_weight = (cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_bias_weight) + (2 * parameters[i][j][2])
+                cost_derivative_with_respect_to_bias_weight = cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_bias_weight 
                 neuron_gradients.append(cost_derivative_with_respect_to_bias_weight)
                 neuron_sum_derivative_with_respect_to_bias = 1.0
-                cost_derivative_with_respect_to_bias = cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_bias + (2 * parameters[i][j][1])
+                cost_derivative_with_respect_to_bias = cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_bias 
                 neuron_gradients.append(cost_derivative_with_respect_to_bias)
                 l2_norm = math.sqrt(sum(math.pow(x, 2) for x in neuron_gradients))
                 max_norm = numpy.percentile(neuron_gradients, max_norm_benchmark)
