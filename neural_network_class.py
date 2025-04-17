@@ -171,17 +171,18 @@ class NeuralNetworkModel:
     is used to determine the cost value and cost derivative value with respect to loss"""
     def compute_loss_and_cost_values_and_derivative(self, target, output, parameters, delta):
         loss = target - output
+        """L2 Regularization"""
+        l2Regularization = 0
         for i in range(len(parameters)):
             for j in range(len(parameters[i])):
                 for k in range(len(parameters[i][j][0])):
-                    """Addition of L2 Regularization values to the loss value"""
-                    loss += math.pow(parameters[i][j][0][k], 2)
+                    l2Regularization += math.pow(parameters[i][j][0][k], 2)
         """Use of Huber Loss (Cost) Function"""
         if loss <= delta:
-            cost = (0.5) * math.pow(loss, 2)
+            cost = ((0.5) * math.pow(loss, 2)) + l2Regularization
             cost_derivative_with_respect_to_loss = loss
         else:
-            cost = delta * (abs(loss) - (0.5 * delta))
+            cost = (delta * (abs(loss) - (0.5 * delta))) + l2Regularization
             cost_derivative_with_respect_to_loss = delta * numpy.sign(loss)
         return loss, cost, cost_derivative_with_respect_to_loss
 
@@ -391,4 +392,3 @@ class NeuralNetworkModel:
     """This method returns the validation_data dataset of the model."""
     def get_validation_data(self):
         return self.validation_data
-
