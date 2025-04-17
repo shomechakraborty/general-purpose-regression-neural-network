@@ -229,19 +229,21 @@ class NeuralNetworkModel:
         loss, cost, cost_derivative_with_respect_to_loss = self.compute_loss_and_cost_values_and_derivative(target, outputs[model_size - 1][0], parameters, delta)
         loss_derivative_with_respect_to_neuron_activation_outputs = []
         neuron_activation_output_derivative_with_respect_to_neuron_sums = []
-        for i in reversed(range(model_size)):
+        for i in range(model_size):
             loss_derivative_with_respect_to_neuron_activation_outputs.append([])
             neuron_activation_output_derivative_with_respect_to_neuron_sums.append([])
             for j in range(int(math.pow(neuron_size_base, model_size - 1 - i))):
                 loss_derivative_with_respect_to_neuron_activation_outputs[i].append([])
                 neuron_activation_output_derivative_with_respect_to_neuron_sums[i].append([])
+        for i in reversed(range(model_size)):
+            for j in range(int(math.pow(neuron_size_base, model_size - 1 - i))):
                 neuron_gradients = []
                 scaled_neuron_gradients = []
                 if i == model_size - 1:
                     loss_derivative_with_respect_to_neuron_activation_output = -1.0
                 else:
                     loss_derivative_with_respect_to_neuron_activation_output = 0
-                    for k in parameters[i + 1]:
+                    for k in range(len(parameters[i + 1])):
                         loss_derivative_with_respect_to_neuron_activation_output += (loss_derivative_with_respect_to_neuron_activation_outputs[i + 1][k] * neuron_activation_output_derivative_with_respect_to_neuron_sums[i + 1][k] * parameters[i + 1][k][0][j])
                 loss_derivative_with_respect_to_neuron_activation_outputs[i][j] = loss_derivative_with_respect_to_neuron_activation_output
                 if i == 0 or i == model_size - 1 or weighted_sums[i][j] > 0:
@@ -389,3 +391,4 @@ class NeuralNetworkModel:
     """This method returns the validation_data dataset of the model."""
     def get_validation_data(self):
         return self.validation_data
+
