@@ -1,7 +1,7 @@
 import math, random, statistics, numpy, copy
 
 class NeuralNetworkModel:
-    def __init__(self, training_data_file_name, text_reference = None, model_size = 5, neuron_size_base = 2, training_epochs = 75, training_data_proportion = 0.75, delta = 1.0, learning_rate = 0.001, learning_rate_decay_rate = 10.0 ** -4, momentum_factor = 0.9, max_norm_benchmark = 90):
+    def __init__(self, training_data_file_name, text_reference = None, model_size = 5, neuron_size_base = 2, training_epochs = 75, training_data_proportion = 0.75, delta = 1.0, learning_rate = 0.001, learning_rate_decay_rate = 10.0 ** -4, momentum_factor = 0.9, max_norm_benchmark = 90, ld = 0.01):
         self.training_data_file_name = training_data_file_name
         self.text_reference = text_reference
         self.delta = delta
@@ -9,6 +9,7 @@ class NeuralNetworkModel:
         self.learning_rate_decay_rate = learning_rate_decay_rate
         self.max_norm_benchmark = max_norm_benchmark
         self.momentum_factor = momentum_factor
+        self.ld = ld
         self.model_size = model_size
         self.neuron_size_base = neuron_size_base
         self.training_epochs = training_epochs
@@ -20,7 +21,7 @@ class NeuralNetworkModel:
         self.validation_data = self.z_score_scale_data(self.pre_scaled_validation_data, self.z_score_scales)
         self.parameters = self.initialize_parameters(self.training_data, self.model_size, self.neuron_size_base)
         self.parameter_velocities = self.initialize_parameter_velocities(self.parameters)
-        self.average_validation_cost_value_over_epochs, self.minimum_cost_index = self.train_model(self.training_epochs, self.training_data, self.parameters, self.parameter_velocities, self.validation_data, self.model_size, self.neuron_size_base, self.delta, self.learning_rate, self.learning_rate_decay_rate, self.momentum_factor, self.max_norm_benchmark)
+        self.average_validation_cost_value_over_epochs, self.minimum_cost_index = self.train_model(self.training_epochs, self.training_data, self.parameters, self.parameter_velocities, self.validation_data, self.model_size, self.neuron_size_base, self.delta, self.learning_rate, self.learning_rate_decay_rate, self.momentum_factor, self.max_norm_benchmark, self.ld)
 
     """Private Methods - To Be Used Internally By the Model Only"""
 
@@ -169,7 +170,7 @@ class NeuralNetworkModel:
     with respect to loss for the model for a given data point processed by the model during the
     training stage. L2 Regularization is added to the loss value and the Huber Loss (Cost) Function
     is used to determine the cost value and cost derivative value with respect to loss"""
-    def compute_loss_and_cost_values_and_derivative(self, target, output, parameters, delta):
+    def compute_loss_and_cost_values_and_derivative(self, target, output, parameters, delta, ld):
         loss = target - output
         """L2 Regularization"""
         l2Regularization = 0
@@ -177,6 +178,7 @@ class NeuralNetworkModel:
             for j in range(len(parameters[i])):
                 for k in range(len(parameters[i][j][0])):
                     l2Regularization += math.pow(parameters[i][j][0][k], 2)
+        l2Regularization *= ld
         """Use of Huber Loss (Cost) Function with L2 Regularization"""
         if loss <= delta:
             cost = ((0.5) * math.pow(loss, 2)) + l2Regularization
@@ -194,7 +196,7 @@ class NeuralNetworkModel:
     predicted target value for the data point. Returns the linear transformed weighted sums of each neuron,
     activation values of each neuron, and the model's cost value - through the
     compute_loss_and_cost_values_and_derivative() method."""
-    def run_layers(self, initial_inputs, target, model_size, neuron_size_base, parameters, delta):
+    def run_layers(self, initial_inputs, target, model_size, neuron_size_base, parameters, delta, ld):
         weighted_sums = []
         outputs = []
         for i in range(model_size):
@@ -216,7 +218,7 @@ class NeuralNetworkModel:
                 for j in range(int(math.pow(neuron_size_base, model_size - 1 - i))):
                     weighted_sums[i].append(self.run_pre_activation_neuron(outputs[i - 1], i, j))
                     outputs[i].append(self.run_pre_activation_neuron(outputs[i - 1], i, j))
-        _, cost, _ = self.compute_loss_and_cost_values_and_derivative(target, outputs[model_size - 1][0], parameters, delta)
+        _, cost, _ = self.compute_loss_and_cost_values_and_derivative(target, outputs[model_size - 1][0], parameters, delta, ld)
         return weighted_sums, outputs, cost
 
     """This method runs the Backpropagation and Gradient Descent mechanism of the model after it
@@ -226,8 +228,8 @@ class NeuralNetworkModel:
     Learning rate is adjusted based on its decay value in order for the model to converge (towards minimum cost) faster.
     Each parameter is then updated with its respective final velocity. The parameter velocities of the model is
     return back."""
-    def run_back_propagation_and_gradient_descent(self, initial_inputs, target, outputs, weighted_sums, parameters, parameter_velocities, model_size, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark):
-        loss, cost, cost_derivative_with_respect_to_loss = self.compute_loss_and_cost_values_and_derivative(target, outputs[model_size - 1][0], parameters, delta)
+    def run_back_propagation_and_gradient_descent(self, initial_inputs, target, outputs, weighted_sums, parameters, parameter_velocities, model_size, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark, ld):
+        loss, cost, cost_derivative_with_respect_to_loss = self.compute_loss_and_cost_values_and_derivative(target, outputs[model_size - 1][0], parameters, delta, ld)
         loss_derivative_with_respect_to_neuron_activation_outputs = []
         neuron_activation_output_derivative_with_respect_to_neuron_sums = []
         for i in range(model_size):
@@ -257,13 +259,13 @@ class NeuralNetworkModel:
                         neuron_sum_derivative_with_respect_to_input_weight = initial_inputs[k]
                     else:
                         neuron_sum_derivative_with_respect_to_input_weight = outputs[i - 1][k]
-                    cost_derivative_with_respect_to_input_weight = (cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_input_weight) + (2 * parameters[i][j][0][k])
+                    cost_derivative_with_respect_to_input_weight = (cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_input_weight) + (2 * ld * parameters[i][j][0][k])
                     neuron_gradients.append(cost_derivative_with_respect_to_input_weight)
                 neuron_sum_derivative_with_respect_to_bias_weight = parameters[i][j][1]
-                cost_derivative_with_respect_to_bias_weight = cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_bias_weight 
+                cost_derivative_with_respect_to_bias_weight = cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_bias_weight
                 neuron_gradients.append(cost_derivative_with_respect_to_bias_weight)
                 neuron_sum_derivative_with_respect_to_bias = 1.0
-                cost_derivative_with_respect_to_bias = cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_bias 
+                cost_derivative_with_respect_to_bias = cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_bias
                 neuron_gradients.append(cost_derivative_with_respect_to_bias)
                 l2_norm = math.sqrt(sum(math.pow(x, 2) for x in neuron_gradients))
                 max_norm = numpy.percentile(neuron_gradients, max_norm_benchmark)
@@ -289,7 +291,7 @@ class NeuralNetworkModel:
     training_epochs hyperparameter. After each epoch, the model's updated parameters are tested on the validation data
     and the average cost across the data points of the validation dataset is computed. The model's parameter are restored
     to the epoch version with the lowest average cost on the validation data."""
-    def train_model(self, training_epochs, training_data, parameters, parameter_velocities, validation_data, model_size, neuron_size_base, delta, learning_rate, learning_rate_decay_rate, momentum_factor, max_norm_benchmark):
+    def train_model(self, training_epochs, training_data, parameters, parameter_velocities, validation_data, model_size, neuron_size_base, delta, learning_rate, learning_rate_decay_rate, momentum_factor, max_norm_benchmark, ld):
         parameter_epoch_versions = []
         average_validation_cost_value_over_epochs = []
         update_step = 0
@@ -299,15 +301,15 @@ class NeuralNetworkModel:
                 adjusted_learning_rate = learning_rate / (1.0 + (learning_rate_decay_rate * update_step))
                 initial_inputs = training_data[i][0:len(training_data[i]) - 1]
                 target = training_data[i][-1]
-                weighted_sums, outputs, cost = self.run_layers(initial_inputs, target, model_size, neuron_size_base, parameters, delta)
-                parameter_velocities = self.run_back_propagation_and_gradient_descent(initial_inputs, target, outputs, weighted_sums, parameters, parameter_velocities, model_size, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark)
+                weighted_sums, outputs, cost = self.run_layers(initial_inputs, target, model_size, neuron_size_base, parameters, delta, ld)
+                parameter_velocities = self.run_back_propagation_and_gradient_descent(initial_inputs, target, outputs, weighted_sums, parameters, parameter_velocities, model_size, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark, ld)
                 update_step += 1
             parameter_epoch_versions.append(copy.deepcopy(parameters))
             validation_cost_values_over_epoch = []
             for j in range(len(validation_data)):
                 initial_inputs = validation_data[i][0:len(training_data[i]) - 1]
                 target = validation_data[i][-1]
-                _, _, cost = self.run_layers(initial_inputs, target, model_size, neuron_size_base, parameters, delta)
+                _, _, cost = self.run_layers(initial_inputs, target, model_size, neuron_size_base, parameters, delta, ld)
                 validation_cost_values_over_epoch.append(cost)
             average_validation_cost_value_over_epoch = statistics.mean(validation_cost_values_over_epoch)
             average_validation_cost_value_over_epochs.append(average_validation_cost_value_over_epoch)
@@ -327,7 +329,7 @@ class NeuralNetworkModel:
     def run_model(self, inputs):
         processed_inputs = self.process_data_line(inputs, self.text_reference)
         scaled_processed_inputs = self.z_score_scale_data_line(processed_inputs, self.z_score_scales)
-        _, outputs, _ = self.run_layers(scaled_processed_inputs, 1, self.model_size, self.neuron_size_base, self.parameters, self.delta)
+        _, outputs, _ = self.run_layers(scaled_processed_inputs, 1, self.model_size, self.neuron_size_base, self.parameters, self.delta, self.ld)
         final_output = self.z_score_rescale_model_output(outputs[self.model_size - 1][0], self.z_score_scales)
         return final_output
 
@@ -354,6 +356,10 @@ class NeuralNetworkModel:
     """This method returns the momentum_factor hyperparameter of the model."""
     def get_momentum_factor(self):
         return self.momentum_factor
+
+    """This method returns the ld hyperparameter of the model."""
+    def get_momentum_factor(self):
+        return self.ld
 
     """This method returns the model_size hyperparameter of the model."""
     def get_model_size(self):
