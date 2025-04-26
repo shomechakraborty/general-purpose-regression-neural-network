@@ -299,16 +299,16 @@ class NeuralNetworkModel:
             random.shuffle(training_data)
             for j in range(len(training_data)):
                 adjusted_learning_rate = learning_rate / (1.0 + (learning_rate_decay_rate * update_step))
-                initial_inputs = training_data[i][0:len(training_data[i]) - 1]
-                target = training_data[i][-1]
+                initial_inputs = training_data[j][0:len(training_data[j]) - 1]
+                target = training_data[j][-1]
                 weighted_sums, outputs, cost = self.run_layers(initial_inputs, target, model_size, neuron_size_base, parameters, delta, ld)
                 parameter_velocities = self.run_back_propagation_and_gradient_descent(initial_inputs, target, outputs, weighted_sums, parameters, parameter_velocities, model_size, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark, ld)
                 update_step += 1
             parameter_epoch_versions.append(copy.deepcopy(parameters))
             validation_cost_values_over_epoch = []
             for j in range(len(validation_data)):
-                initial_inputs = validation_data[i][0:len(training_data[i]) - 1]
-                target = validation_data[i][-1]
+                initial_inputs = validation_data[j][0:len(validation_data[j]) - 1]
+                target = validation_data[j][-1]
                 _, _, cost = self.run_layers(initial_inputs, target, model_size, neuron_size_base, parameters, delta, ld)
                 validation_cost_values_over_epoch.append(cost)
             average_validation_cost_value_over_epoch = statistics.mean(validation_cost_values_over_epoch)
