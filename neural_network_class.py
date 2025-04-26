@@ -282,7 +282,6 @@ class NeuralNetworkModel:
                         parameters[i][j][2] += parameter_velocities[i][j][k]
                     else:
                         parameters[i][j][1] += parameter_velocities[i][j][k]
-        return parameter_velocities
 
     """This method trains the model based on the data it has received for the Training Stage.
     Forward Pass, Backpropagation, and Gradient Descent is executed for each data point processed
@@ -302,7 +301,7 @@ class NeuralNetworkModel:
                 initial_inputs = training_data[j][0:len(training_data[j]) - 1]
                 target = training_data[j][-1]
                 weighted_sums, outputs, cost = self.run_layers(initial_inputs, target, model_size, neuron_size_base, parameters, delta, ld)
-                parameter_velocities = self.run_back_propagation_and_gradient_descent(initial_inputs, target, outputs, weighted_sums, parameters, parameter_velocities, model_size, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark, ld)
+                self.run_back_propagation_and_gradient_descent(initial_inputs, target, outputs, weighted_sums, parameters, parameter_velocities, model_size, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark, ld)
                 update_step += 1
             parameter_epoch_versions.append(copy.deepcopy(parameters))
             validation_cost_values_over_epoch = []
