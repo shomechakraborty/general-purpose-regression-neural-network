@@ -19,7 +19,7 @@ class NeuralNetworkModel:
         self.z_score_scales = self.compute_z_score_scales(self.pre_scaled_training_data)
         self.training_data = self.z_score_scale_data(self.pre_scaled_training_data, self.z_score_scales)
         self.validation_data = self.z_score_scale_data(self.pre_scaled_validation_data, self.z_score_scales)
-        self.parameters = self.initialize_parameters(self.training_data, self.model_size, self.neuron_size_base)
+        self.parameters, self.std_dev_noise = self.initialize_parameters(self.training_data, self.model_size, self.neuron_size_base)
         self.parameter_velocities = self.initialize_parameter_velocities(self.parameters)
         self.average_validation_cost_values_over_epochs, self.minimum_cost_index = self.train_model(self.training_epochs, self.training_data, self.parameters, self.parameter_velocities, self.validation_data, self.model_size, self.neuron_size_base, self.delta, self.learning_rate, self.learning_rate_decay_rate, self.momentum_factor, self.max_norm_benchmark, self.ld)
 
@@ -113,17 +113,20 @@ class NeuralNetworkModel:
                 parameters[i][j].append([])
                 if i == 0:
                     """Kaiming He Weight Initialization Formula"""
-                    limit = math.sqrt(6.0/float(len(training_data[0]) - 1))
+                    std_dev = math.sqrt(2.0/float(len(training_data[0]) - 1))
                     for k in range(len(training_data[0]) - 1):
-                        parameters[i][j][0].append(random.uniform(-1.0 * limit, 1.0 * limit))
+                        parameters[i][j][0].append(np.random.normal(0, std_dev))
+                    parameters[i][j].append(0.0)
+                    parameters[i][j].append(np.random.normal(0, std_dev))
+                    std_dev_noise = std_dev
                 else:
                     """Kaiming He Weight Initialization Formula"""
-                    limit = math.sqrt(6.0/float(math.pow(neuron_size_base, model_size - i)))
+                    std_dev = math.sqrt(2.0/float(len(training_data[0]) - 1))
                     for k in range(int(math.pow(neuron_size_base, model_size - i))):
-                        parameters[i][j][0].append(random.uniform(-1.0 * limit, 1.0 * limit))
-                parameters[i][j].append(0.0)
-                parameters[i][j].append(random.uniform(-1.0 * limit, 1.0 * limit))
-        return parameters
+                        parameters[i][j][0].append(np.random.normal(0, std_dev))
+                    parameters[i][j].append(0.0)
+                    parameters[i][j].append(np.random.normal(0, std_dev))
+        return parameters, std_dev_noise
 
     """This method initializes and returns the parameter velocities (update values) of each parameters
     which will be used to keep track of updates to parameters in order to implement Momentum-based
