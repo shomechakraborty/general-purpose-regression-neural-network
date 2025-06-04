@@ -1,7 +1,7 @@
-import math, random, statistics, numpy, copy
+import math, random, statistics as stats, numpy as np, copy
 
 class NeuralNetworkModel:
-    def __init__(self, training_data_file_name, text_reference = None, model_size = 5, neuron_size_base = 2, training_epochs = 75, training_data_proportion = 0.75, delta = 1.0, learning_rate = 0.001, learning_rate_decay_rate = 10.0 ** -4, momentum_factor = 0.9, max_norm_benchmark = 90, ld = 0.01):
+    def __init__(self, training_data_file_name, text_reference = None, model_size = 5, neuron_size_base = 2, training_epochs = 75, training_data_proportion = 0.75, delta = 1.0, learning_rate = 0.001, learning_rate_decay_rate = 0.0001, momentum_factor = 0.9, max_norm_benchmark = 90, ld = 0.01):
         self.training_data_file_name = training_data_file_name
         self.text_reference = text_reference
         self.delta = delta
@@ -22,8 +22,6 @@ class NeuralNetworkModel:
         self.parameters = self.initialize_parameters(self.training_data, self.model_size, self.neuron_size_base)
         self.parameter_velocities = self.initialize_parameter_velocities(self.parameters)
         self.average_validation_cost_values_over_epochs, self.minimum_cost_index = self.train_model(self.training_epochs, self.training_data, self.parameters, self.parameter_velocities, self.validation_data, self.model_size, self.neuron_size_base, self.delta, self.learning_rate, self.learning_rate_decay_rate, self.momentum_factor, self.max_norm_benchmark, self.ld)
-
-    """Private Methods - To Be Used Internally By the Model Only"""
 
     """This method returns the processed data line of an unprocessed data point from
     the training dataset or validation dataset during the Training Stage, or of a new data
@@ -73,8 +71,8 @@ class NeuralNetworkModel:
             data_list = []
             for j in range(len(pre_scaled_training_data)):
                 data_list.append(pre_scaled_training_data[j][i])
-            mean = statistics.mean(data_list)
-            standard_deviation = statistics.stdev(data_list)
+            mean = stats.mean(data_list)
+            standard_deviation = stats.stdev(data_list)
             z_score_scales.append([mean, standard_deviation])
         return z_score_scales
 
@@ -155,8 +153,8 @@ class NeuralNetworkModel:
     in a given layer (for hidden layers only)."""
     def layer_normalize(self, layer_weighted_sums):
         layer_normalized_sums = []
-        mean = statistics.mean(layer_weighted_sums)
-        standard_deviation = statistics.stdev(layer_weighted_sums)
+        mean = stats.mean(layer_weighted_sums)
+        standard_deviation = stats.stdev(layer_weighted_sums)
         for i in range(len(layer_weighted_sums)):
             layer_normalized_sums.append((layer_weighted_sums[i] - mean) / standard_deviation)
         return layer_normalized_sums
@@ -176,19 +174,19 @@ class NeuralNetworkModel:
     def compute_loss_and_cost_values_and_derivative(self, target, output, parameters, delta, ld):
         loss = target - output
         """L2 Regularization"""
-        l2Regularization = 0
+        input_weight_sums = 0
         for i in range(len(parameters)):
             for j in range(len(parameters[i])):
                 for k in range(len(parameters[i][j][0])):
-                    l2Regularization += math.pow(parameters[i][j][0][k], 2)
-        l2Regularization *= ld
+                    input_weight_sums += math.pow(parameters[i][j][0][k], 2)
+        l2Regularization = ld * input_weight_sums
         """Use of Huber Loss (Cost) Function with L2 Regularization"""
         if loss <= delta:
             cost = ((0.5) * math.pow(loss, 2)) + l2Regularization
             cost_derivative_with_respect_to_loss = loss
         else:
             cost = (delta * (abs(loss) - (0.5 * delta))) + l2Regularization
-            cost_derivative_with_respect_to_loss = delta * numpy.sign(loss)
+            cost_derivative_with_respect_to_loss = delta * np.sign(loss)
         return loss, cost, cost_derivative_with_respect_to_loss
 
     """This method runs the Forward Pass mechanism of the model. Input feature values from the data point
@@ -199,7 +197,7 @@ class NeuralNetworkModel:
     predicted target value for the data point. Returns the linear transformed weighted sums of each neuron,
     activation values of each neuron, and the model's cost value - through the
     compute_loss_and_cost_values_and_derivative() method."""
-    def run_layers(self, initial_inputs, target, model_size, neuron_size_base, parameters, delta, ld):
+    def run_layers(self, initial_inputs, target, model_size, neuron_size_base, parameters):
         weighted_sums = []
         outputs = []
         for i in range(model_size):
@@ -219,8 +217,7 @@ class NeuralNetworkModel:
                 for j in range(int(math.pow(neuron_size_base, model_size - 1 - i))):
                     weighted_sums[i].append(self.run_pre_activation_neuron(outputs[i - 1], i, j, parameters))
                     outputs[i].append(self.run_pre_activation_neuron(outputs[i - 1], i, j, parameters))
-        _, cost, _ = self.compute_loss_and_cost_values_and_derivative(target, outputs[model_size - 1][0], parameters, delta, ld)
-        return weighted_sums, outputs, cost
+        return weighted_sums, outputs
 
     """This method runs the Backpropagation and Gradient Descent mechanism of the model after it
     processes a given data point from the training dataset. The gradient for each parameter in the model
@@ -229,9 +226,8 @@ class NeuralNetworkModel:
     Learning rate is adjusted based on its decay value in order for the model to converge (towards minimum cost) faster.
     Each parameter is then updated with its respective final velocity. The parameter velocities of the model is
     return back."""
-    def run_back_propagation_and_gradient_descent(self, initial_inputs, target, outputs, weighted_sums, parameters, parameter_velocities, model_size, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark, ld):
-        """Back Propagation Process"""
-        loss, cost, cost_derivative_with_respect_to_loss = self.compute_loss_and_cost_values_and_derivative(target, outputs[model_size - 1][0], parameters, delta, ld)
+    def run_back_propagation_and_gradient_descent(self, loss, cost, cost_derivative_with_respect_to_loss, initial_inputs, outputs, weighted_sums, parameters, parameter_velocities, model_size, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark, ld):
+        """Back Propagation"""
         loss_derivative_with_respect_to_neuron_activation_outputs = []
         neuron_activation_output_derivative_with_respect_to_neuron_sums = []
         for i in range(model_size):
@@ -270,7 +266,7 @@ class NeuralNetworkModel:
                 cost_derivative_with_respect_to_bias_weight = cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_bias_weight
                 neuron_gradients.append(cost_derivative_with_respect_to_bias_weight)
                 l2_norm = math.sqrt(sum(math.pow(x, 2) for x in neuron_gradients))
-                max_norm = numpy.percentile(neuron_gradients, max_norm_benchmark)
+                max_norm = np.percentile(neuron_gradients, max_norm_benchmark)
                 for k in range(len(neuron_gradients)):
                     if l2_norm > max_norm:
                         scaled_neuron_gradients.append(neuron_gradients[k] * (max_norm / l2_norm))
@@ -280,8 +276,8 @@ class NeuralNetworkModel:
                     parameter_velocities[i][j][0][k] = (parameter_velocities[i][j][0][k] * momentum_factor) - (scaled_neuron_gradients[k] * adjusted_learning_rate)
                 parameter_velocities[i][j][1] = (parameter_velocities[i][j][1] * momentum_factor) - (scaled_neuron_gradients[len(scaled_neuron_gradients) - 2] * adjusted_learning_rate)
                 parameter_velocities[i][j][2] = (parameter_velocities[i][j][2] * momentum_factor) - (scaled_neuron_gradients[len(scaled_neuron_gradients) - 1] * adjusted_learning_rate)
-        """Gradient Descent using the calculated parameter velocity values for each parameter in each neuron in the model
-        from the Back Propagation Process"""
+        """Gradient Descent, using the calculated parameter velocity values for each parameter in each neuron in the model
+        from Back Propagation"""
         for i in reversed(range(model_size)):
             for j in range(int(math.pow(neuron_size_base, model_size - 1 - i))):
                 for k in range(len(parameter_velocities[i][j][0])):
@@ -302,19 +298,21 @@ class NeuralNetworkModel:
         update_step = 0
         for i in range(training_epochs):
             random.shuffle(training_data)
-            for j in range(len(training_data)):
-                adjusted_learning_rate = learning_rate / (1.0 + (learning_rate_decay_rate * update_step))
-                initial_inputs = training_data[j][0:len(training_data[j]) - 1]
-                target = training_data[j][-1]
-                weighted_sums, outputs, cost = self.run_layers(initial_inputs, target, model_size, neuron_size_base, parameters, delta, ld)
-                self.run_back_propagation_and_gradient_descent(initial_inputs, target, outputs, weighted_sums, parameters, parameter_velocities, model_size, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark, ld)
-                update_step += 1
+            r = int(random.random() * len(training_data))
+            initial_inputs = training_data[r][0:len(training_data[r]) - 1]
+            target = training_data[r][-1]
+            weighted_sums, outputs = self.run_layers(initial_inputs, target, model_size, neuron_size_base, parameters)
+            loss, cost, cost_derivative_with_respect_to_loss = self.compute_loss_and_cost_values_and_derivative(target, outputs[model_size - 1][0], parameters, delta, ld)
+            adjusted_learning_rate = learning_rate / (1.0 + (learning_rate_decay_rate * update_step))
+            self.run_back_propagation_and_gradient_descent(loss, cost, cost_derivative_with_respect_to_loss, initial_inputs, outputs, weighted_sums, parameters, parameter_velocities, model_size, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark, ld)
+            update_step += 1
             parameter_epoch_versions.append(copy.deepcopy(parameters))
             total_validation_cost_value_over_epoch = 0
             for j in range(len(validation_data)):
                 initial_inputs = validation_data[j][0:len(validation_data[j]) - 1]
                 target = validation_data[j][-1]
-                _, _, cost = self.run_layers(initial_inputs, target, model_size, neuron_size_base, parameters, delta, ld)
+                _, outputs = self.run_layers(initial_inputs, target, model_size, neuron_size_base, parameters)
+                _, cost, _ = self.compute_loss_and_cost_values_and_derivative(target, outputs[model_size - 1][0], parameters, delta, ld)
                 total_validation_cost_value_over_epoch += cost
             average_validation_cost_value_over_epoch = total_validation_cost_value_over_epoch / len(validation_data)
             average_validation_cost_values_over_epochs.append(average_validation_cost_value_over_epoch)
@@ -332,7 +330,7 @@ class NeuralNetworkModel:
     def run_model(self, inputs):
         processed_inputs = self.process_data_line(inputs, self.text_reference)
         scaled_processed_inputs = self.z_score_scale_data_line(processed_inputs, self.z_score_scales)
-        _, outputs, _ = self.run_layers(scaled_processed_inputs, 1, self.model_size, self.neuron_size_base, self.parameters, self.delta, self.ld)
+        _, outputs, _ = self.run_layers(scaled_processed_inputs, 1, self.model_size, self.neuron_size_base, self.parameters)
         final_output = self.z_score_rescale_model_output(outputs[self.model_size - 1][0], self.z_score_scales)
         return final_output
 
@@ -401,4 +399,3 @@ class NeuralNetworkModel:
     """This method returns the validation_data dataset of the model."""
     def get_validation_data(self):
         return self.validation_data
-
