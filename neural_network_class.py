@@ -57,7 +57,7 @@ class NeuralNetworkModel:
         pre_scaled_training_data = []
         pre_scaled_validation_data = []
         for i in range(len(pre_scaled_data)):
-            if i < (len(pre_scaled_data) * training_data_proportion) - 1:
+            if i < (len(pre_scaled_data) * training_data_proportion):
                 pre_scaled_training_data.append(pre_scaled_data[i])
             else:
                 pre_scaled_validation_data.append(pre_scaled_data[i])
