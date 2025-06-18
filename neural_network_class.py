@@ -17,10 +17,9 @@ class NeuralNetworkModel:
         self.pre_scaled_data = self.assemble_pre_scaled_data(self.training_data_file_name, self.text_reference)
         self.pre_scaled_training_data, self.pre_scaled_validation_data = self.split_pre_scaled_data(self.pre_scaled_data, self.training_data_proportion)
         self.z_score_scales = self.compute_z_score_scales(self.pre_scaled_training_data)
-        self.training_data, self.data_noise = self.z_score_scale_data(self.pre_scaled_training_data, self.z_score_scales, self.training_epochs)
+        self.training_data = self.z_score_scale_data(self.pre_scaled_training_data, self.z_score_scales)
         self.validation_data = self.z_score_scale_data(self.pre_scaled_validation_data, self.z_score_scales)
-        self.parameters, self.parameter_noise = self.initialize_parameters(self.training_data, self.model_size, self.neuron_size_base)
-        self.noise = self.data_noise + self.parameter_noise
+        self.parameters = self.initialize_parameters(self.training_data, self.model_size, self.neuron_size_base)
         self.parameter_velocities = self.initialize_parameter_velocities(self.parameters)
         self.average_validation_cost_values_over_epochs, self.minimum_cost_index, self.training_cost_values_over_epochs = self.train_model(self.training_epochs, self.training_data, self.parameters, self.parameter_velocities, self.validation_data, self.model_size, self.neuron_size_base, self.delta, self.learning_rate, self.learning_rate_decay_rate, self.momentum_factor, self.max_norm_benchmark, self.l2)
 
@@ -95,11 +94,7 @@ class NeuralNetworkModel:
         scaled_data = []
         for i in range(len(pre_scaled_data)):
             scaled_data.append(self.z_score_scale_data_line(pre_scaled_data[i], z_score_scales))
-        if training_epochs == None:
-            return scaled_data
-        else:
-            data_noise = stats.variance([data_line[-1] for data_line in scaled_data]) / training_epochs
-            return scaled_data, data_noise
+        return scaled_data
 
     """This method returns the rescaled the final output of the model for a given data point passed into
     the model during the Inference Stage, converting the z-score scaled output value to the raw output
@@ -111,7 +106,6 @@ class NeuralNetworkModel:
     to uniform random numbers using the He/Kaiming Uniform weight initialization method."""
     def initialize_parameters(self, training_data, model_size, neuron_size_base):
         parameters = []
-        parameter_noise = 2.0 / (len(training_data[0]) - 1)
         for i in range(model_size):
             parameters.append([])
             for j in range(int(math.pow(neuron_size_base, model_size - 1 - i))):
@@ -119,7 +113,7 @@ class NeuralNetworkModel:
                 parameters[i][j].append([])
                 if i == 0:
                     """Kaiming He Weight Initialization Formula"""
-                    std_dev = math.sqrt(parameter_noise)
+                    std_dev = math.sqrt(2.0 / (len(training_data[0]) - 1))
                     for k in range(len(training_data[0]) - 1):
                         parameters[i][j][0].append(np.random.normal(0, std_dev))
                 else:
@@ -129,7 +123,7 @@ class NeuralNetworkModel:
                         parameters[i][j][0].append(np.random.normal(0, std_dev))
                 parameters[i][j].append(0.0)
                 parameters[i][j].append(np.random.normal(0, std_dev))
-        return parameters, parameter_noise
+        return parameters
 
     """This method initializes and returns the parameter velocities (update values) of each parameters
     which will be used to keep track of updates to parameters in order to implement Momentum-based
@@ -411,11 +405,6 @@ class NeuralNetworkModel:
     def get_training_data(self):
         return self.training_data
 
-    """This method returns the data_noise (the variability in the model's performance due to the distribution of
-    target values in the data)  of the model."""
-    def get_data_noise(self):
-        return self.data_noise
-
     """This method returns the validation_data of the model."""
     def get_validation_data(self):
         return self.validation_data
@@ -423,15 +412,6 @@ class NeuralNetworkModel:
     """This method returns the parameters of the model."""
     def get_parameters(self):
         return self.parameters
-
-    """This method returns the parameter_noise (the variability in the model's performance due to the initialization
-    of parameters)  of the model."""
-    def get_parameter_noise(self):
-        return self.parameter_noise
-
-    """This method returns the noise (the sum of the data_noise and parameter_noise) of the model."""
-    def get_noise(self):
-        return self.noise
 
     """This method returns the parameter_velocities of the model."""
     def get_parameter_velocities(self):
