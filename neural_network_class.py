@@ -312,7 +312,7 @@ class NeuralNetworkModel:
         final_outputs = []
         for i in range(len(input_data_list)):
             scaled_inputs = self.z_score_scale_data_line(input_data_list[i], self.z_score_scales, False)
-            _, outputs = self.run_layers(scaled_processed_inputs, self.model_size, self.neuron_size_base, self.parameters)
+            _, outputs = self.run_layers(scaled_inputs, self.model_size, self.neuron_size_base, self.parameters)
             final_outputs.append(self.z_score_rescale_model_output(outputs[self.model_size - 1][0], self.z_score_scales))
         return final_outputs
 
