@@ -1,9 +1,9 @@
 import math, random, statistics as stats, numpy as np, copy
 
 class NeuralNetworkModel:
-    def __init__(self, training_data_file_name, text_reference = None, model_size = 5, neuron_size_base = 2, training_epochs = 75, training_data_proportion = 0.75, delta = 1.0, learning_rate = 0.01, learning_rate_decay_rate = 0.001, momentum_factor = 0.9, max_norm_benchmark = 90, l2 = 0.01):
-        self.training_data_file_name = training_data_file_name
-        self.text_reference = text_reference
+    def __init__(self, input_data, target_data, model_size = 5, neuron_size_base = 2, training_epochs = 75, training_data_proportion = 0.75, delta = 1.0, learning_rate = 0.01, learning_rate_decay_rate = 0.001, momentum_factor = 0.9, max_norm_benchmark = 90, l2 = 0.01):
+        self.input_data = input_data
+        self.target_data = target_data
         self.delta = delta
         self.learning_rate = learning_rate
         self.learning_rate_decay_rate = learning_rate_decay_rate
@@ -14,8 +14,7 @@ class NeuralNetworkModel:
         self.neuron_size_base = neuron_size_base
         self.training_epochs = training_epochs
         self.training_data_proportion = training_data_proportion
-        self.pre_scaled_data = self.assemble_pre_scaled_data(self.training_data_file_name, self.text_reference)
-        self.pre_scaled_training_data, self.pre_scaled_validation_data = self.split_pre_scaled_data(self.pre_scaled_data, self.training_data_proportion)
+        self.pre_scaled_training_data, self.pre_scaled_validation_data = self.assemble_pre_scaled_data(self.input_data, self.target_data, self.training_data_proportion)
         self.z_score_scales = self.compute_z_score_scales(self.pre_scaled_training_data)
         self.training_data = self.z_score_scale_data(self.pre_scaled_training_data, self.z_score_scales)
         self.validation_data = self.z_score_scale_data(self.pre_scaled_validation_data, self.z_score_scales)
@@ -23,57 +22,30 @@ class NeuralNetworkModel:
         self.parameter_velocities = self.initialize_parameter_velocities(self.parameters)
         self.average_validation_cost_values_over_epochs, self.minimum_cost_index, self.training_cost_values_over_epochs = self.train_model(self.training_epochs, self.training_data, self.parameters, self.parameter_velocities, self.validation_data, self.model_size, self.neuron_size_base, self.delta, self.learning_rate, self.learning_rate_decay_rate, self.momentum_factor, self.max_norm_benchmark, self.l2)
 
-    """This method returns the processed data line of an unprocessed data point from
-    the training dataset or validation dataset during the Training Stage, or of a new data
-    point passed into the model during the Inference Stage, with any text values of each data point
-    converted to a numerical value using the model's text_reference and all values of each data
-    point in float form."""
-    def process_data_line(self, pre_processed_data_line, text_reference):
-        processed_data_line = []
-        for i in range(len(pre_processed_data_line)):
-            if str(pre_processed_data_line[i]).isalpha():
-                for key in text_reference:
-                    if str(pre_processed_data_line[i]) == key:
-                        processed_data_line.append(float(text_reference[key]))
-            else:
-                processed_data_line.append(float(pre_processed_data_line[i]))
-        return processed_data_line
-
-    """This method assembles and returns the pre-scaled data used by the model
-    for training."""
-    def assemble_pre_scaled_data(self, training_data_file_name, text_reference):
+    """This method assembles and returns the pre-scaled training and validation data
+    used by the model for training."""
+    def assemble_pre_scaled_data(self, input_data, target_data, training_data_proportion):
         pre_scaled_data = []
-        file = open(training_data_file_name)
-        for line in file:
-            pre_processed_data_line = line.strip().split(",")
-            processed_data_line = self.process_data_line(pre_processed_data_line, text_reference)
-            pre_scaled_data.append(processed_data_line)
-        return pre_scaled_data
-
-    """This method returns the split training dataset and validation dataset for the model
-    from the data passed into the model for the Training Stage."""
-    def split_pre_scaled_data(self, pre_scaled_data, training_data_proportion):
-        pre_scaled_training_data = []
-        pre_scaled_validation_data = []
-        for i in range(len(pre_scaled_data)):
-            if i < (len(pre_scaled_data) * training_data_proportion):
-                pre_scaled_training_data.append(pre_scaled_data[i])
-            else:
-                pre_scaled_validation_data.append(pre_scaled_data[i])
+        for i in range(len(input_data)):
+            pre_scaled_data.append([input_data[i], target_data[i]])
+        pre_scaled_training_data = pre_scaled_data[:int(len(pre_scaled_data) * training_data_proportion)]
+        pre_scaled_validation_data = pre_scaled_data[int(len(pre_scaled_data) * training_data_proportion):]
         return pre_scaled_training_data, pre_scaled_validation_data
 
     """This method computes and returns the mean and standard deviation for each input feature
     data and the target value data in the pre-scaled training data in order to
     scale the data processed by the model using z-score normalization."""
     def compute_z_score_scales(self, pre_scaled_training_data):
-        z_score_scales = []
-        for i in range(len(pre_scaled_training_data[0])):
+        z_score_scales = [[]]
+        for i in range(len(pre_scaled_training_data[0][0])):
             data_list = []
             for j in range(len(pre_scaled_training_data)):
-                data_list.append(pre_scaled_training_data[j][i])
-            mean = stats.mean(data_list)
-            standard_deviation = stats.stdev(data_list)
-            z_score_scales.append([mean, standard_deviation])
+                data_list.append(pre_scaled_training_data[j][0][i])
+            z_score_scales[0].append([stats.mean(data_list), stats.stdev(data_list)])
+        data_list = []
+        for j in range(len(pre_scaled_training_data)):
+            data_list.append(pre_scaled_training_data[j][1])
+        z_score_scales.append([stats.mean(data_list), stats.stdev(data_list)])
         return z_score_scales
 
     """This values returns the z-score scaled data point of an unscaled data point from the training dataset
@@ -81,26 +53,32 @@ class NeuralNetworkModel:
     Inference Stage, with each input feature or (if applicable) target value z-score scaled with respect to the
     mean and standard deviation of the values of the respective input feature or target in the training
     dataset."""
-    def z_score_scale_data_line(self, data_line, z_score_scales):
-        scaled_data_line = []
-        for i in range(len(data_line)):
-            scaled_data_line.append((data_line[i] - z_score_scales[i][0]) / z_score_scales[i][1])
+    def z_score_scale_data_line(self, data_line, z_score_scales, target):
+        if target:
+            scaled_data_line = [[]]
+            for i in range(len(data_line[0])):
+                scaled_data_line[0].append((data_line[0][i] - z_score_scales[0][i][0]) / z_score_scales[0][i][1])
+            scaled_data_line.append((data_line[1] - z_score_scales[1][0]) / z_score_scales[1][1])
+        else:
+            scaled_data_line = []
+            for i in range(len(data_line)):
+                scaled_data_line.append((data_line[i] - z_score_scales[0][i][0]) / z_score_scales[0][i][1])
         return scaled_data_line
 
     """This method z-score scales the input feature and target values in each data point of the
     training dataset and validation dataset - with use of the z_score_scale_data_line() method -
     during the training stage."""
-    def z_score_scale_data(self, pre_scaled_data, z_score_scales, training_epochs = None):
+    def z_score_scale_data(self, pre_scaled_data, z_score_scales):
         scaled_data = []
         for i in range(len(pre_scaled_data)):
-            scaled_data.append(self.z_score_scale_data_line(pre_scaled_data[i], z_score_scales))
+            scaled_data.append(self.z_score_scale_data_line(pre_scaled_data[i], z_score_scales, True))
         return scaled_data
 
     """This method returns the rescaled the final output of the model for a given data point passed into
     the model during the Inference Stage, converting the z-score scaled output value to the raw output
     value with respect to the mean and standard deviation of the target values in the training dataset."""
     def z_score_rescale_model_output(self, output, z_score_scales):
-        return (output * z_score_scales[len(z_score_scales) - 1][1]) + z_score_scales[len(z_score_scales) - 1][0]
+        return (output * z_score_scales[1][1]) + z_score_scales[1][0]
 
     """This method initializes and returns the parameters of the model initializes the parameters of the model
     to uniform random numbers using the He/Kaiming Uniform weight initialization method."""
@@ -197,7 +175,7 @@ class NeuralNetworkModel:
     predicted target value for the data point. Returns the linear transformed weighted sums of each neuron,
     activation values of each neuron, and the model's cost value - through the
     compute_loss_and_cost_values_and_derivative() method."""
-    def run_layers(self, initial_inputs, target, model_size, neuron_size_base, parameters):
+    def run_layers(self, initial_inputs, model_size, neuron_size_base, parameters):
         weighted_sums = []
         outputs = []
         for i in range(model_size):
@@ -300,9 +278,9 @@ class NeuralNetworkModel:
         for i in range(training_epochs):
             random.shuffle(training_data)
             r = int(random.random() * len(training_data))
-            initial_inputs = training_data[r][0:len(training_data[r]) - 1]
-            target = training_data[r][-1]
-            weighted_sums, outputs = self.run_layers(initial_inputs, target, model_size, neuron_size_base, parameters)
+            initial_inputs = training_data[r][0]
+            target = training_data[r][1]
+            weighted_sums, outputs = self.run_layers(initial_inputs, model_size, neuron_size_base, parameters)
             loss, cost, cost_derivative_with_respect_to_loss = self.compute_loss_and_cost_values_and_derivative(target, outputs[model_size - 1][0], parameters, delta, l2)
             training_cost_values_over_epochs.append(cost)
             adjusted_learning_rate = learning_rate / (1.0 + (learning_rate_decay_rate * update_step))
@@ -311,9 +289,9 @@ class NeuralNetworkModel:
             parameter_epoch_versions.append(copy.deepcopy(parameters))
             total_validation_cost_value_over_epoch = 0
             for j in range(len(validation_data)):
-                initial_inputs = validation_data[j][0:len(validation_data[j]) - 1]
-                target = validation_data[j][-1]
-                _, outputs = self.run_layers(initial_inputs, target, model_size, neuron_size_base, parameters)
+                initial_inputs = validation_data[j][0]
+                target = validation_data[j][1]
+                _, outputs = self.run_layers(initial_inputs, model_size, neuron_size_base, parameters)
                 _, cost, _ = self.compute_loss_and_cost_values_and_derivative(target, outputs[model_size - 1][0], parameters, delta, l2)
                 total_validation_cost_value_over_epoch += cost
             average_validation_cost_value_over_epoch = total_validation_cost_value_over_epoch / len(validation_data)
@@ -325,24 +303,26 @@ class NeuralNetworkModel:
         parameters = parameter_epoch_versions[minimum_cost_index]
         return average_validation_cost_values_over_epochs, minimum_cost_index, training_cost_values_over_epochs
 
-    """Runs the model on a new data point during the inference stage. The data point is processed and z-score
+    """Runs the model on a list of input data during the inference stage. Each input data is processed and z-score
     scaled with respect to the mean and standard deviation of the training dataset through the process_data_line()
-    and z_score_scale_data_line() methods respectively. A predicted target value for the data point is computed through
-    the run_layers() function. The model's predicted value is rescaled through the z_score_rescale_model_output() method."""
-    def run_model(self, inputs):
-        processed_inputs = self.process_data_line(inputs, self.text_reference)
-        scaled_processed_inputs = self.z_score_scale_data_line(processed_inputs, self.z_score_scales)
-        _, outputs = self.run_layers(scaled_processed_inputs, 1, self.model_size, self.neuron_size_base, self.parameters)
-        final_output = self.z_score_rescale_model_output(outputs[self.model_size - 1][0], self.z_score_scales)
-        return final_output
+    and z_score_scale_data_line() methods respectively. Each predicted target value for a given input data is computed through
+    the run_layers() function, and then rescaled through the z_score_rescale_model_output() method. A list of predicted targets
+    corresponding to the list of input data is returned"""
+    def run_model(self, inputs_list):
+        final_outputs = []
+        for i in range(len(inputs_list)):
+            scaled_inputs = self.z_score_scale_data_line(inputs_list[i], self.z_score_scales, False)
+            _, outputs = self.run_layers(scaled_processed_inputs, self.model_size, self.neuron_size_base, self.parameters)
+            final_outputs.append(self.z_score_rescale_model_output(outputs[self.model_size - 1][0], self.z_score_scales))
+        return final_outputs
 
-    """This method returns the training_data_file_name of the model."""
-    def get_training_data_file_name(self):
-        return self.training_data_file_name
+    """This method returns the input_data of the model."""
+    def get_input_data(self):
+        return self.input_data
 
-    """This method returns the text_reference of the model."""
-    def get_text_reference(self):
-        return self.text_reference
+    """This method returns the target_data of the model."""
+    def get_target_data(self):
+        return self.target_data
 
     """This method returns the delta hyperparameter of the model."""
     def get_delta(self):
@@ -383,10 +363,6 @@ class NeuralNetworkModel:
     """This method returns the training_data_proportion hyperparameter of the model."""
     def get_training_data_proportion(self):
         return self.training_data_proportion
-
-    """This method returns the pre_scaled_data of the model."""
-    def get_pre_scaled_data(self):
-        return self.pre_scaled_data
 
     """This method returns the pre_scaled_training_data of the model."""
     def get_pre_scaled_training_data(self):
