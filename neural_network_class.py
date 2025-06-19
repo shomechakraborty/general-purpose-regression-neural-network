@@ -308,10 +308,10 @@ class NeuralNetworkModel:
     and z_score_scale_data_line() methods respectively. Each predicted target value for a given input data is computed through
     the run_layers() function, and then rescaled through the z_score_rescale_model_output() method. A list of predicted targets
     corresponding to the list of input data is returned"""
-    def run_model(self, inputs_list):
+    def run_model(self, input_data_list):
         final_outputs = []
-        for i in range(len(inputs_list)):
-            scaled_inputs = self.z_score_scale_data_line(inputs_list[i], self.z_score_scales, False)
+        for i in range(len(input_data_list)):
+            scaled_inputs = self.z_score_scale_data_line(input_data_list[i], self.z_score_scales, False)
             _, outputs = self.run_layers(scaled_processed_inputs, self.model_size, self.neuron_size_base, self.parameters)
             final_outputs.append(self.z_score_rescale_model_output(outputs[self.model_size - 1][0], self.z_score_scales))
         return final_outputs
