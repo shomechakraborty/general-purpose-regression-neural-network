@@ -92,7 +92,7 @@ class NeuralNetworkModel:
                 if i == 0:
                     """Kaiming He Weight Initialization Formula"""
                     std_dev = math.sqrt(2.0 / (len(training_data[0]) - 1))
-                    for k in range(len(training_data[0]) - 1):
+                    for k in range(len(training_data[0][0])):
                         parameters[i][j][0].append(np.random.normal(0, std_dev))
                 else:
                     """Kaiming He Weight Initialization Formula"""
@@ -122,7 +122,7 @@ class NeuralNetworkModel:
     """This method returns the linear transformation weighted sum of a given neuron"""
     def run_pre_activation_neuron(self, inputs, layer_index, neuron_index, parameters):
         sum = 0.0;
-        for i in range(len(parameters[layer_index][neuron_index][0])):
+        for i in range(len(inputs)):
             sum += inputs[i] * parameters[layer_index][neuron_index][0][i]
         sum += parameters[layer_index][neuron_index][1] * parameters[layer_index][neuron_index][2]
         return sum
@@ -276,7 +276,6 @@ class NeuralNetworkModel:
         training_cost_values_over_epochs = []
         update_step = 0
         for i in range(training_epochs):
-            random.shuffle(training_data)
             r = int(random.random() * len(training_data))
             initial_inputs = training_data[r][0]
             target = training_data[r][1]
