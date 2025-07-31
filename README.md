@@ -8,4 +8,4 @@ INTRODUCTION
 
 - This model is inspired by a previous neural network model I developed, which was designed to specialize in the prediction of housing prices. I had fixed, adjusted, and built upon core feature of that model in the development of this program, providing more robust and accurate functionality for this program.
 
-Full Project Documentation: https://drive.google.com/file/d/1SHJESguEox4zSf_BDi60Oea-HBeGiTa7/view?usp=sharing
+Full Project Documentation: https://drive.google.com/file/d/1SHJESguEox4zSf_BDi60Oea-HBeGiTa7/view?usp=sharing](https://docs.google.com/document/d/1WYskp_TW9B5trKevxpwKKoMcgW6UpGYwqKvJP5Pl37U/edit?usp=sharing
