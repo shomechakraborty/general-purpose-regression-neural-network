@@ -1,7 +1,10 @@
 import math, random, statistics as stats, numpy as np, copy
 
 class NeuralNetworkModel:
-    def __init__(self, input_data, target_data, model_size = 5, neuron_size_base = 2, training_epochs = 75, training_data_proportion = 0.75, delta = 1.0, learning_rate = 0.01, learning_rate_decay_rate = 0.001, momentum_factor = 0.9, max_norm_benchmark = 90, l2 = 0.01):
+    def __init__(self, input_data, target_data, hidden_layers = 4, neuron_size_base = 2, training_epochs = 75, training_data_proportion = 0.75, delta = 1.0, learning_rate = 0.01, learning_rate_decay_rate = 0.001, momentum_factor = 0.9, max_norm_benchmark = 90, l2 = 0.01, leaky_relu_slope = 0.01, random_state = None):
+        self.random_state = random_state
+        if self.random_state != None:
+            random.seed(self.random_state)
         self.input_data = input_data
         self.target_data = target_data
         self.delta = delta
@@ -10,17 +13,18 @@ class NeuralNetworkModel:
         self.max_norm_benchmark = max_norm_benchmark
         self.momentum_factor = momentum_factor
         self.l2 = l2
-        self.model_size = model_size
+        self.hidden_layers = hidden_layers
+        self.model_depth = self.hidden_layers + 1
         self.neuron_size_base = neuron_size_base
         self.training_epochs = training_epochs
         self.training_data_proportion = training_data_proportion
-        self.pre_scaled_training_data, self.pre_scaled_validation_data = self.assemble_pre_scaled_data(self.input_data, self.target_data, self.training_data_proportion)
+        self.leaky_relu_slope = leaky_relu_slope
+        self.pre_scaled_training_data, self.validation_data = self.assemble_pre_scaled_data(self.input_data, self.target_data, self.training_data_proportion)
         self.z_score_scales = self.compute_z_score_scales(self.pre_scaled_training_data)
-        self.training_data = self.z_score_scale_data(self.pre_scaled_training_data, self.z_score_scales)
-        self.validation_data = self.z_score_scale_data(self.pre_scaled_validation_data, self.z_score_scales)
-        self.parameters = self.initialize_parameters(self.training_data, self.model_size, self.neuron_size_base)
-        self.parameter_velocities = self.initialize_parameter_velocities(self.parameters)
-        self.average_validation_cost_values_over_epochs, self.minimum_cost_index, self.training_cost_values_over_epochs = self.train_model(self.training_epochs, self.training_data, self.parameters, self.parameter_velocities, self.validation_data, self.model_size, self.neuron_size_base, self.delta, self.learning_rate, self.learning_rate_decay_rate, self.momentum_factor, self.max_norm_benchmark, self.l2)
+        self.training_data = self.z_score_scale_training_data(self.pre_scaled_training_data, self.z_score_scales)
+        self.parameters = self.initialize_parameters(self.training_data, self.model_depth, self.neuron_size_base)
+        self.parameter_velocities = self.initialize_parameter_velocities(self.parameters, self.model_depth, self.neuron_size_base)
+        self.parameters, self.validation_mses_over_epochs, self.minimum_cost_index, self.training_cost_values_over_epochs = self.train_model(self.training_epochs, self.training_data, self.parameters, self.parameter_velocities, self.validation_data, self.model_depth, self.neuron_size_base, self.delta, self.learning_rate, self.learning_rate_decay_rate, self.momentum_factor, self.max_norm_benchmark, self.l2, self.leaky_relu_slope)
 
     """This method assembles and returns the pre-scaled training and validation data
     used by the model for training."""
@@ -66,9 +70,9 @@ class NeuralNetworkModel:
         return scaled_data_line
 
     """This method z-score scales the input feature and target values in each data point of the
-    training dataset and validation dataset - with use of the z_score_scale_data_line() method -
+    training dataset dataset - with use of the z_score_scale_data_line() method -
     during the training stage."""
-    def z_score_scale_data(self, pre_scaled_data, z_score_scales):
+    def z_score_scale_training_data(self, pre_scaled_data, z_score_scales):
         scaled_data = []
         for i in range(len(pre_scaled_data)):
             scaled_data.append(self.z_score_scale_data_line(pre_scaled_data[i], z_score_scales, True))
@@ -82,11 +86,11 @@ class NeuralNetworkModel:
 
     """This method initializes and returns the parameters of the model initializes the parameters of the model
     to uniform random numbers using the He/Kaiming Uniform weight initialization method."""
-    def initialize_parameters(self, training_data, model_size, neuron_size_base):
+    def initialize_parameters(self, training_data, model_depth, neuron_size_base):
         parameters = []
-        for i in range(model_size):
+        for i in range(model_depth):
             parameters.append([])
-            for j in range(int(math.pow(neuron_size_base, model_size - 1 - i))):
+            for j in range(int(math.pow(neuron_size_base, model_depth - 1 - i))):
                 parameters[i].append([])
                 parameters[i][j].append([])
                 if i == 0:
@@ -97,26 +101,29 @@ class NeuralNetworkModel:
                 else:
                     """Kaiming He Weight Initialization Formula"""
                     std_dev = math.sqrt(2.0/float(len(training_data[0]) - 1))
-                    for k in range(int(math.pow(neuron_size_base, model_size - i))):
+                    for k in range(int(math.pow(neuron_size_base, model_depth - i))):
                         parameters[i][j][0].append(np.random.normal(0, std_dev))
                 parameters[i][j].append(0.0)
-                parameters[i][j].append(np.random.normal(0, std_dev))
+            if i != model_depth - 1:
+                parameters[i].append(np.random.normal(0, std_dev))
+                parameters[i].append(0.0)
         return parameters
 
     """This method initializes and returns the parameter velocities (update values) of each parameters
     which will be used to keep track of updates to parameters in order to implement Momentum-based
     parameter update regulation (values initialized to 0)."""
-    def initialize_parameter_velocities(self, parameters):
+    def initialize_parameter_velocities(self, parameters, model_depth, neuron_size_base):
         parameter_velocities = []
-        for i in range(len(parameters)):
+        for i in range(model_depth):
             parameter_velocities.append([])
-            for j in range(len(parameters[i])):
+            for j in range(int(math.pow(neuron_size_base, model_depth - 1 - i))):
                 parameter_velocities[i].append([])
                 parameter_velocities[i][j].append([])
                 for k in range(len(parameters[i][j][0])):
                     parameter_velocities[i][j][0].append(0.0)
-                for k in range(2):
-                    parameter_velocities[i][j].append(0.0)
+                parameter_velocities[i][j].append(0.0)
+            for j in range(2):
+                parameter_velocities[i].append(0.0)
         return parameter_velocities
 
     """This method returns the linear transformation weighted sum of a given neuron"""
@@ -124,37 +131,40 @@ class NeuralNetworkModel:
         sum = 0.0;
         for i in range(len(inputs)):
             sum += inputs[i] * parameters[layer_index][neuron_index][0][i]
-        sum += parameters[layer_index][neuron_index][1] * parameters[layer_index][neuron_index][2]
+        sum += parameters[layer_index][neuron_index][1]
         return sum
 
     """This method returns the normalized linear transformation weighted sums of all the neurons
     in a given layer (for hidden layers only)."""
-    def layer_normalize(self, layer_weighted_sums):
+    def layer_normalize(self, layer_sums, parameters, layer_index):
         layer_normalized_sums = []
-        mean = stats.mean(layer_weighted_sums)
-        standard_deviation = stats.stdev(layer_weighted_sums)
-        for i in range(len(layer_weighted_sums)):
-            layer_normalized_sums.append((layer_weighted_sums[i] - mean) / standard_deviation)
-        return layer_normalized_sums
+        mean = stats.mean(layer_sums)
+        standard_deviation = stats.stdev(layer_sums)
+        layer_data = [mean, standard_deviation]
+        ld = parameters[layer_index][-2]
+        b = parameters[layer_index][-1]
+        for i in range(len(layer_sums)):
+            layer_normalized_sums.append(ld * ((layer_sums[i] - mean) / standard_deviation) + b)
+        return layer_normalized_sums, layer_data
 
     """This method returns the ReLU activation output of a given neuron's linear transformed
     weighted sum (for hidden layers only)"""
-    def run_neuron_ReLU_activation(self, normalized_sum):
+    def run_neuron_ReLU_activation(self, normalized_sum, leaky_relu_slope):
             if normalized_sum > 0:
                 return normalized_sum
             else:
-                return 0.0
+                return leaky_relu_slope * normalized_sum
 
     """This method computes and returns the loss value, cost value, and cost derivative value
     with respect to loss for the model for a given data point processed by the model during the
     training stage. L2 Regularization is added to the loss value and the Huber Loss (Cost) Function
     is used to determine the cost value and cost derivative value with respect to loss"""
-    def compute_loss_and_cost_values_and_derivative(self, target, output, parameters, delta, l2):
+    def compute_loss_and_cost_values_and_derivative(self, target, output, parameters, delta, l2, model_depth, neuron_size_base):
         loss = target - output
         """L2 Regularization"""
         input_weight_sums = 0
-        for i in range(len(parameters)):
-            for j in range(len(parameters[i])):
+        for i in range(model_depth):
+            for j in range(int(math.pow(neuron_size_base, model_depth - 1 - i))):
                 for k in range(len(parameters[i][j][0])):
                     input_weight_sums += math.pow(parameters[i][j][0][k], 2)
         l2Regularization = l2 * input_weight_sums
@@ -175,27 +185,62 @@ class NeuralNetworkModel:
     predicted target value for the data point. Returns the linear transformed weighted sums of each neuron,
     activation values of each neuron, and the model's cost value - through the
     compute_loss_and_cost_values_and_derivative() method."""
-    def run_layers(self, initial_inputs, model_size, neuron_size_base, parameters):
-        weighted_sums = []
+    def run_layers(self, initial_inputs, model_depth, neuron_size_base, parameters, leaky_relu_slope):
+        sums = []
         outputs = []
-        for i in range(model_size):
+        layer_datas = []
+        for i in range(model_depth):
             outputs.append([])
-            weighted_sums.append([])
+            sums.append([])
             if i == 0:
-                for j in range(int(math.pow(neuron_size_base, model_size - 1 - i))):
-                    weighted_sums[i].append(self.run_pre_activation_neuron(initial_inputs, i, j, parameters))
-                    outputs[i].append(self.run_pre_activation_neuron(initial_inputs, i, j, parameters))
-            elif i != model_size - 1:
-                for j in range(int(math.pow(neuron_size_base, model_size - 1 - i))):
-                    weighted_sums[i].append(self.run_pre_activation_neuron(outputs[i - 1], i, j, parameters))
-                weighted_sums[i] = self.layer_normalize(weighted_sums[i])
-                for j in range(len(weighted_sums[i])):
-                    outputs[i].append(self.run_neuron_ReLU_activation(weighted_sums[i][j]))
+                for j in range(int(math.pow(neuron_size_base, model_depth - 1 - i))):
+                    sums[i].append(self.run_pre_activation_neuron(initial_inputs, i, j, parameters))
+                sums[i], layer_data = self.layer_normalize(sums[i], parameters, i)
+                layer_datas.append(layer_data)
+                for j in range(len(sums[i])):
+                    outputs[i].append(self.run_neuron_ReLU_activation(sums[i][j], leaky_relu_slope))
+            elif i != model_depth - 1:
+                for j in range(int(math.pow(neuron_size_base, model_depth - 1 - i))):
+                    sums[i].append(self.run_pre_activation_neuron(outputs[i - 1], i, j, parameters))
+                sums[i], layer_data = self.layer_normalize(sums[i], parameters, i)
+                layer_datas.append(layer_data)
+                for j in range(len(sums[i])):
+                    outputs[i].append(self.run_neuron_ReLU_activation(sums[i][j], leaky_relu_slope))
             else:
-                for j in range(int(math.pow(neuron_size_base, model_size - 1 - i))):
-                    weighted_sums[i].append(self.run_pre_activation_neuron(outputs[i - 1], i, j, parameters))
+                for j in range(int(math.pow(neuron_size_base, model_depth - 1 - i))):
+                    sums[i].append(self.run_pre_activation_neuron(outputs[i - 1], i, j, parameters))
                     outputs[i].append(self.run_pre_activation_neuron(outputs[i - 1], i, j, parameters))
-        return weighted_sums, outputs
+        return sums, outputs, layer_datas
+
+    def clip_gradients(self, current_parameter_velocities, model_depth, neuron_size_base, max_norm_benchmark):
+        gradients = []
+        current_parameter_velocities_clipped = []
+        for i in range(model_depth):
+            for j in range(int(math.pow(neuron_size_base, model_depth - 1 - i))):
+                for k in range(len(current_parameter_velocities[i][j][0])):
+                    gradients.append(current_parameter_velocities[i][j][0][k])
+                gradients.append(current_parameter_velocities[i][j][1])
+            if i != model_depth - 1:
+                gradients.append(current_parameter_velocities[i][-2])
+                gradients.append(current_parameter_velocities[i][-1])
+        l2_norm = math.sqrt(sum(math.pow(x, 2) for x in gradients))
+        max_norm = np.percentile(gradients, max_norm_benchmark)
+        if l2_norm > max_norm:
+            scaler = (max_norm / l2_norm)
+        else:
+            scaler = 1
+        for i in range(model_depth):
+            current_parameter_velocities_clipped.append([])
+            for j in range(int(math.pow(neuron_size_base, model_depth - 1 - i))):
+                current_parameter_velocities_clipped[i].append([])
+                current_parameter_velocities_clipped[i][j].append([])
+                for k in range(len(current_parameter_velocities[i][j][0])):
+                    current_parameter_velocities_clipped[i][j][0].append(current_parameter_velocities[i][j][0][k] * scaler)
+                current_parameter_velocities_clipped[i][j].append(current_parameter_velocities[i][j][1] * scaler)
+            if i != model_depth - 1:
+                current_parameter_velocities_clipped[i].append(current_parameter_velocities[i][-2] * scaler)
+                current_parameter_velocities_clipped[i].append(current_parameter_velocities[i][-1] * scaler)
+        return current_parameter_velocities_clipped
 
     """This method runs the Backpropagation and Gradient Descent mechanism of the model after it
     processes a given data point from the training dataset. The gradient for each parameter in the model
@@ -204,64 +249,81 @@ class NeuralNetworkModel:
     Learning rate is adjusted based on its decay value in order for the model to converge (towards minimum cost) faster.
     Each parameter is then updated with its respective final velocity. The parameter velocities of the model is
     return back."""
-    def run_back_propagation_and_gradient_descent(self, loss, cost, cost_derivative_with_respect_to_loss, initial_inputs, outputs, weighted_sums, parameters, parameter_velocities, model_size, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark, l2):
+    def run_back_propagation_and_gradient_descent(self, loss, cost, cost_derivative_with_respect_to_loss, initial_inputs, outputs, sums, parameters, parameter_velocities, model_depth, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark, l2, layer_datas, leaky_relu_slope):
         """Back Propagation"""
+        current_parameter_velocities = []
         loss_derivative_with_respect_to_neuron_activation_outputs = []
         neuron_activation_output_derivative_with_respect_to_neuron_sums = []
-        for i in range(model_size):
+        for i in range(model_depth):
+            current_parameter_velocities.append([])
             loss_derivative_with_respect_to_neuron_activation_outputs.append([])
             neuron_activation_output_derivative_with_respect_to_neuron_sums.append([])
-            for j in range(int(math.pow(neuron_size_base, model_size - 1 - i))):
+            for j in range(int(math.pow(neuron_size_base, model_depth - 1 - i))):
+                current_parameter_velocities[i].append([])
+                current_parameter_velocities[i][j].append([])
                 loss_derivative_with_respect_to_neuron_activation_outputs[i].append([])
                 neuron_activation_output_derivative_with_respect_to_neuron_sums[i].append([])
-        for i in reversed(range(model_size)):
-            for j in range(int(math.pow(neuron_size_base, model_size - 1 - i))):
+        for i in reversed(range(model_depth)):
+            if i != model_depth - 1:
+                cost_derivative_with_respect_to_ld = 0
+                cost_derivative_with_respect_to_b = 0
+                layer_data = layer_datas[i]
+            for j in range(int(math.pow(neuron_size_base, model_depth - 1 - i))):
                 neuron_gradients = []
-                scaled_neuron_gradients = []
-                if i == model_size - 1:
+                if i == model_depth - 1:
                     loss_derivative_with_respect_to_neuron_activation_output = -1.0
                 else:
                     loss_derivative_with_respect_to_neuron_activation_output = 0
-                    for k in range(len(parameters[i + 1])):
+                    for k in range(int(math.pow(neuron_size_base, model_depth - 2 - i))):
                         loss_derivative_with_respect_to_neuron_activation_output += (loss_derivative_with_respect_to_neuron_activation_outputs[i + 1][k] * neuron_activation_output_derivative_with_respect_to_neuron_sums[i + 1][k] * parameters[i + 1][k][0][j])
                 loss_derivative_with_respect_to_neuron_activation_outputs[i][j] = loss_derivative_with_respect_to_neuron_activation_output
-                if i == 0 or i == model_size - 1 or weighted_sums[i][j] > 0:
+                if i == 0 or i == model_depth - 1 or sums[i][j] > 0:
                     neuron_activation_output_derivative_with_respect_to_neuron_sum = 1.0
                 else:
-                    neuron_activation_output_derivative_with_respect_to_neuron_sum = 0.0
+                    neuron_activation_output_derivative_with_respect_to_neuron_sum = leaky_relu_slope
                 neuron_activation_output_derivative_with_respect_to_neuron_sums[i][j] = neuron_activation_output_derivative_with_respect_to_neuron_sum
                 for k in range(len(parameters[i][j][0])):
                     if i == 0:
-                        neuron_sum_derivative_with_respect_to_input_weight = initial_inputs[k]
+                        neuron_sum_derivative_with_respect_to_input_weight =  initial_inputs[k]
                     else:
                         neuron_sum_derivative_with_respect_to_input_weight = outputs[i - 1][k]
+                    if i != model_depth - 1:
+                        neuron_sum_derivative_with_respect_to_input_weight *= (parameters[i][-2] / layer_data[1])
                     cost_derivative_with_respect_to_input_weight = (cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_input_weight) + (2 * l2 * parameters[i][j][0][k])
-                    neuron_gradients.append(cost_derivative_with_respect_to_input_weight)
-                neuron_sum_derivative_with_respect_to_bias = 1.0
+                    current_parameter_velocities[i][j][0].append(cost_derivative_with_respect_to_input_weight)
+                if i != model_depth - 1:
+                    neuron_sum_derivative_with_respect_to_bias = (parameters[i][-2] / layer_data[1])
+                else:
+                    neuron_sum_derivative_with_respect_to_bias = 1
                 cost_derivative_with_respect_to_bias = cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_bias
-                neuron_gradients.append(cost_derivative_with_respect_to_bias)
-                neuron_sum_derivative_with_respect_to_bias_weight = parameters[i][j][1]
-                cost_derivative_with_respect_to_bias_weight = cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_bias_weight
-                neuron_gradients.append(cost_derivative_with_respect_to_bias_weight)
-                l2_norm = math.sqrt(sum(math.pow(x, 2) for x in neuron_gradients))
-                max_norm = np.percentile(neuron_gradients, max_norm_benchmark)
-                for k in range(len(neuron_gradients)):
-                    if l2_norm > max_norm:
-                        scaled_neuron_gradients.append(neuron_gradients[k] * (max_norm / l2_norm))
-                    else:
-                        scaled_neuron_gradients.append(neuron_gradients[k])
+                current_parameter_velocities[i][j].append(cost_derivative_with_respect_to_bias)
+                if i != model_depth - 1:
+                    neuron_sum_derivative_with_respect_to_ld = (sums[i][j] - parameters[i][-1]) / parameters[i][-2]
+                    cost_derivative_with_respect_to_ld += cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum * neuron_sum_derivative_with_respect_to_ld
+                    cost_derivative_with_respect_to_b += cost_derivative_with_respect_to_loss * loss_derivative_with_respect_to_neuron_activation_output * neuron_activation_output_derivative_with_respect_to_neuron_sum
+            if i != model_depth - 1:
+                current_parameter_velocities[i].append(cost_derivative_with_respect_to_ld)
+                current_parameter_velocities[i].append(cost_derivative_with_respect_to_b)
+        current_parameter_velocities_clipped = self.clip_gradients(current_parameter_velocities, model_depth, neuron_size_base, max_norm_benchmark)
+        for i in reversed(range(model_depth)):
+            for j in range(int(math.pow(neuron_size_base, model_depth - 1 - i))):
                 for k in range(len(parameter_velocities[i][j][0])):
-                    parameter_velocities[i][j][0][k] = (parameter_velocities[i][j][0][k] * momentum_factor) - (scaled_neuron_gradients[k] * adjusted_learning_rate)
-                parameter_velocities[i][j][1] = (parameter_velocities[i][j][1] * momentum_factor) - (scaled_neuron_gradients[len(scaled_neuron_gradients) - 2] * adjusted_learning_rate)
-                parameter_velocities[i][j][2] = (parameter_velocities[i][j][2] * momentum_factor) - (scaled_neuron_gradients[len(scaled_neuron_gradients) - 1] * adjusted_learning_rate)
+                    parameter_velocities[i][j][0][k] = (parameter_velocities[i][j][0][k] * momentum_factor) - (current_parameter_velocities_clipped[i][j][0][k] * adjusted_learning_rate)
+                parameter_velocities[i][j][1] = (parameter_velocities[i][j][1] * momentum_factor) - (current_parameter_velocities_clipped[i][j][1] * adjusted_learning_rate)
+            if i != model_depth - 1:
+                parameter_velocities[i][-2] = (parameter_velocities[i][-2] * momentum_factor) - (current_parameter_velocities_clipped[i][-2] * adjusted_learning_rate)
+                parameter_velocities[i][-1] = (parameter_velocities[i][-1] * momentum_factor) - (current_parameter_velocities_clipped[i][-1] * adjusted_learning_rate)
         """Gradient Descent, using the calculated parameter velocity values for each parameter in each neuron in the model
         from Back Propagation"""
-        for i in reversed(range(model_size)):
-            for j in range(int(math.pow(neuron_size_base, model_size - 1 - i))):
+        for i in reversed(range(model_depth)):
+            for j in range(int(math.pow(neuron_size_base, model_depth - 1 - i))):
                 for k in range(len(parameter_velocities[i][j][0])):
                     parameters[i][j][0][k] += parameter_velocities[i][j][0][k]
                 parameters[i][j][1] += parameter_velocities[i][j][1]
-                parameters[i][j][2] += parameter_velocities[i][j][2]
+            if i != model_depth - 1:
+                parameters[i][-2] += parameter_velocities[i][-2]
+                parameters[i][-1] += parameter_velocities[i][-1]
+        return parameters
 
     """This method trains the model based on the data it has received for the Training Stage.
     Forward Pass, Backpropagation, and Gradient Descent is executed for each data point processed
@@ -270,37 +332,37 @@ class NeuralNetworkModel:
     training_epochs hyperparameter. After each epoch, the model's updated parameters are tested on the validation data
     and the average cost across the data points of the validation dataset is computed. The model's parameter are restored
     to the epoch version with the lowest average cost on the validation data."""
-    def train_model(self, training_epochs, training_data, parameters, parameter_velocities, validation_data, model_size, neuron_size_base, delta, learning_rate, learning_rate_decay_rate, momentum_factor, max_norm_benchmark, l2):
+    def train_model(self, training_epochs, training_data, parameters, parameter_velocities, validation_data, model_depth, neuron_size_base, delta, learning_rate, learning_rate_decay_rate, momentum_factor, max_norm_benchmark, l2, leaky_relu_slope):
         parameter_epoch_versions = []
-        average_validation_cost_values_over_epochs = []
+        """average_validation_cost_values_over_epochs = []"""
         training_cost_values_over_epochs = []
+        validation_mses_over_epochs = []
         update_step = 0
         for i in range(training_epochs):
             r = int(random.random() * len(training_data))
             initial_inputs = training_data[r][0]
             target = training_data[r][1]
-            weighted_sums, outputs = self.run_layers(initial_inputs, model_size, neuron_size_base, parameters)
-            loss, cost, cost_derivative_with_respect_to_loss = self.compute_loss_and_cost_values_and_derivative(target, outputs[model_size - 1][0], parameters, delta, l2)
+            sums, outputs, layer_datas = self.run_layers(initial_inputs, model_depth, neuron_size_base, parameters, leaky_relu_slope)
+            loss, cost, cost_derivative_with_respect_to_loss = self.compute_loss_and_cost_values_and_derivative(target, outputs[model_depth - 1][0], parameters, delta, l2, model_depth, neuron_size_base)
             training_cost_values_over_epochs.append(cost)
             adjusted_learning_rate = learning_rate / (1.0 + (learning_rate_decay_rate * update_step))
-            self.run_back_propagation_and_gradient_descent(loss, cost, cost_derivative_with_respect_to_loss, initial_inputs, outputs, weighted_sums, parameters, parameter_velocities, model_size, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark, l2)
+            parameters = self.run_back_propagation_and_gradient_descent(loss, cost, cost_derivative_with_respect_to_loss, initial_inputs, outputs, sums, parameters, parameter_velocities, model_depth, neuron_size_base, delta, adjusted_learning_rate, momentum_factor, max_norm_benchmark, l2, layer_datas, leaky_relu_slope)
             update_step += 1
             parameter_epoch_versions.append(copy.deepcopy(parameters))
-            total_validation_cost_value_over_epoch = 0
+            validation_ses_over_epoch = []
             for j in range(len(validation_data)):
                 initial_inputs = validation_data[j][0]
                 target = validation_data[j][1]
-                _, outputs = self.run_layers(initial_inputs, model_size, neuron_size_base, parameters)
-                _, cost, _ = self.compute_loss_and_cost_values_and_derivative(target, outputs[model_size - 1][0], parameters, delta, l2)
-                total_validation_cost_value_over_epoch += cost
-            average_validation_cost_value_over_epoch = total_validation_cost_value_over_epoch / len(validation_data)
-            average_validation_cost_values_over_epochs.append(average_validation_cost_value_over_epoch)
+                _, outputs, _ = self.run_layers(initial_inputs, model_depth, neuron_size_base, parameters, leaky_relu_slope)
+                prediction = outputs[model_depth - 1][0]
+                validation_ses_over_epoch.append(pow(target - prediction, 2))
+            validation_mses_over_epochs.append(stats.mean(validation_ses_over_epoch))
         minimum_cost_index = 0
-        for i in range(len(average_validation_cost_values_over_epochs)):
-            if average_validation_cost_values_over_epochs[i] < average_validation_cost_values_over_epochs[minimum_cost_index]:
+        for i in range(len(validation_mses_over_epochs)):
+            if validation_mses_over_epochs[i] < validation_mses_over_epochs[minimum_cost_index]:
                 minimum_cost_index = i
         parameters = parameter_epoch_versions[minimum_cost_index]
-        return average_validation_cost_values_over_epochs, minimum_cost_index, training_cost_values_over_epochs
+        return parameters, validation_mses_over_epochs, minimum_cost_index, training_cost_values_over_epochs
 
     """Runs the model on a list of input data during the inference stage. Each input data is processed and z-score
     scaled with respect to the mean and standard deviation of the training dataset through the process_data_line()
@@ -311,9 +373,13 @@ class NeuralNetworkModel:
         final_outputs = []
         for i in range(len(input_data_list)):
             scaled_inputs = self.z_score_scale_data_line(input_data_list[i], self.z_score_scales, False)
-            _, outputs = self.run_layers(scaled_inputs, self.model_size, self.neuron_size_base, self.parameters)
-            final_outputs.append(self.z_score_rescale_model_output(outputs[self.model_size - 1][0], self.z_score_scales))
+            _, outputs, _ = self.run_layers(scaled_inputs, self.model_depth, self.neuron_size_base, self.parameters, self.leaky_relu_slope)
+            final_outputs.append(self.z_score_rescale_model_output(outputs[self.model_depth - 1][0], self.z_score_scales))
         return final_outputs
+
+    """This method returns the random_state hyperparameter of the model."""
+    def get_random_state(self):
+        return self.random_state
 
     """This method returns the input_data of the model."""
     def get_input_data(self):
@@ -347,9 +413,13 @@ class NeuralNetworkModel:
     def get_l2(self):
         return self.l2
 
-    """This method returns the model_size hyperparameter of the model."""
-    def get_model_size(self):
-        return self.model_size
+    """This method returns the hidden_layers hyperparameter of the model."""
+    def get_model_depth(self):
+        return self.hidden_layers
+
+    """This method returns the model_depth attribute of the model."""
+    def get_model_depth(self):
+        return self.model_depth
 
     """This method returns the neuron_size_base hyperparameter of the model."""
     def get_neuron_size_base(self):
@@ -362,6 +432,10 @@ class NeuralNetworkModel:
     """This method returns the training_data_proportion hyperparameter of the model."""
     def get_training_data_proportion(self):
         return self.training_data_proportion
+
+    """This method returns the leaky_relu_slope hyperparameter of the model."""
+    def get_leaky_relu_slope(self):
+        return self.leaky_relu_slope
 
     """This method returns the pre_scaled_training_data of the model."""
     def get_pre_scaled_training_data(self):
@@ -392,10 +466,10 @@ class NeuralNetworkModel:
     def get_parameter_velocities(self):
         return self.parameter_velocities
 
-    """This method returns the average_validation_cost_values_over_epochs (the average validation cost of the model
+    """This method returns the validation_mses_over_epochs (the average validation cost of the model
     across all epochs) of the model."""
-    def get_average_validation_cost_values_over_epochs(self):
-        return self.average_validation_cost_values_over_epochs
+    def get_validation_mses_over_epochs(self):
+        return self.validation_mses_over_epochs
 
     """This method returns the minimum_cost_index (the epoch at which the model
     achieved the lowest validation cost from the training dataset - indexed to 0)  of the model."""
