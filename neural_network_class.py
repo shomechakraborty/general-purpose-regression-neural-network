@@ -351,7 +351,7 @@ class NeuralNetworkModel:
             parameter_epoch_versions.append(copy.deepcopy(parameters))
             validation_ses_over_epoch = []
             for j in range(len(validation_data)):
-                data = self.z_score_scale_data_line(validation_data[j][0], self.z_score_scales, True)
+                data = self.z_score_scale_data_line(validation_data[j], self.z_score_scales, True)
                 initial_inputs = data[0]
                 target = data[1]
                 _, outputs, _ = self.run_layers(initial_inputs, model_depth, neuron_size_base, parameters, leaky_relu_slope)
